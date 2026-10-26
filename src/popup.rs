@@ -1,12 +1,13 @@
 //! Los avisos en pantalla: una superficie de Wayland (layer-shell, espacio de
-//! nombres "arre") arriba al centro con los avisos apilados, el más nuevo
-//! arriba; en la capa de encima de todo, para que se vean aunque haya algo en
-//! pantalla completa. Clic izquierdo hace lo que pide el aviso (si pide algo) y lo quita,
+//! nombres "arre") con los avisos apilados donde diga config.json (arriba al
+//! centro si no dice), el más nuevo pegado a la orilla; en la capa de encima de
+//! todo, para que se vean aunque haya algo en pantalla completa. Clic izquierdo hace lo que pide el aviso (si pide algo) y lo quita,
 //! clic en un botón usa ese botón, clic derecho lo quita y clic medio quita
 //! todos. Con el puntero encima no se van solos.
 
 use crate::bus::{CTL_IFACE, CTL_PATH, Ev, IFACE, PATH, Shared};
 use crate::card::{Card, card};
+use crate::config;
 use crate::icon::{Icon, Icons};
 use crate::look::Look;
 use crate::paint::Painter;
@@ -73,6 +74,7 @@ struct App {
     look: Look,
     painter: Painter,
     icons: Icons,
+    position: &'static str,
     qh: QueueHandle<App>,
 }
 
@@ -199,8 +201,16 @@ impl App {
         if self.layer.is_none() {
             let surface = self.compositor.create_surface(&self.qh);
             let layer = self.layer_shell.create_layer_surface(&self.qh, surface, Layer::Overlay, Some("arre"), None);
-            layer.set_anchor(Anchor::TOP);
-            layer.set_margin(MARGIN, 0, 0, 0);
+            let (vert, side) = self.position.split_once('-').unwrap_or(("top", "center"));
+            let mut anchor = if vert == "bottom" { Anchor::BOTTOM } else { Anchor::TOP };
+            match side {
+                "left" => anchor |= Anchor::LEFT,
+                "right" => anchor |= Anchor::RIGHT,
+                _ => {}
+            }
+            layer.set_anchor(anchor);
+            let m = |on: bool| if on { MARGIN } else { 0 };
+            layer.set_margin(m(vert != "bottom"), m(side == "right"), m(vert == "bottom"), m(side == "left"));
             layer.set_keyboard_interactivity(KeyboardInteractivity::None);
             layer.set_size(w, h);
             layer.commit();
@@ -228,8 +238,14 @@ impl App {
         let s = self.scale.max(1);
         let (w, h) = (self.size.0 as i32 * s, self.size.1 as i32 * s);
         let Some(mut pix) = tiny_skia::Pixmap::new(w as u32, h as u32) else { return };
+        // abajo, el más nuevo (el primero) va hasta abajo
+        let mut order: Vec<usize> = (0..cards.len().min(self.shown.len())).collect();
+        if self.position.starts_with("bottom") {
+            order.reverse();
+        }
         let mut y = 0.0f32;
-        for ((c, icon), shown) in cards.iter().zip(self.shown.iter_mut()) {
+        for i in order {
+            let ((c, icon), shown) = (&cards[i], &mut self.shown[i]);
             self.painter.card(&mut pix, &c.buf, &self.look, 0.0, y * s as f32, s as f32);
             if let (Some(icon), Some(cell)) = (icon, c.icon) {
                 self.painter.icon(&mut pix, icon, cell, self.look.theme.fg, 0.0, y * s as f32, s as f32);
@@ -331,9 +347,11 @@ pub fn run(shared: Arc<Shared>, rx: Channel<Ev>, dbus: zbus::blocking::Connectio
         look: Look::load(),
         painter: Painter::new(),
         icons: Icons::new(),
+        position: config::position(),
         qh,
     };
     let mut last_look = Instant::now();
+    let mut cfg_stamp = config::stamp();
     loop {
         event_loop.dispatch(Duration::from_millis(200), &mut app).map_err(|e| e.to_string())?;
         app.tick();
@@ -344,6 +362,17 @@ pub fn run(shared: Arc<Shared>, rx: Channel<Ev>, dbus: zbus::blocking::Connectio
                 app.painter = Painter::new();
                 app.size = (0, 0);
                 app.redraw();
+            }
+            // otro lugar: la superficie se vuelve a hacer con sus nuevas orillas
+            if config::stamp() != cfg_stamp {
+                cfg_stamp = config::stamp();
+                let p = config::position();
+                if p != app.position {
+                    app.position = p;
+                    app.layer = None;
+                    app.configured = false;
+                    app.redraw();
+                }
             }
         }
     }

@@ -8,6 +8,8 @@
 //!   arre list                el historial en JSON
 //!   arre clear               borrar el historial y lo que está en pantalla
 //!   arre close <id>          quitar una
+//!   arre position [lugar]    dónde salen: top-left, top-center, top-right,
+//!                            bottom-left, bottom-center o bottom-right
 //!   arre waybar              para un módulo custom de waybar: JSON con cuántas
 //!                            hay y si está en no molestar, cada que cambia
 //!
@@ -16,6 +18,7 @@
 
 mod bus;
 mod card;
+mod config;
 mod icon;
 mod look;
 mod paint;
@@ -164,12 +167,17 @@ fn main() {
         }
         ["clear"] => client(test, "Clear", &()).map(|_| ()),
         ["waybar"] => waybar(test),
+        ["position"] => {
+            println!("{}", config::position());
+            Ok(())
+        }
+        ["position", p] => config::set_position(p),
         ["close", id] => {
             let id: u32 = id.parse().map_err(|_| "arre close <id>".to_string())?;
             client(test, "Dismiss", &(id,)).map(|_| ())
         }
         ["-h" | "--help" | "help"] => {
-            println!("arre [dnd [on|off|toggle] | count | list | clear | close <id> | waybar] [--test]");
+            println!("arre [dnd [on|off|toggle] | count | list | clear | close <id> | position [lugar] | waybar] [--test]");
             Ok(())
         }
         _ => Err(format!("{}: arre --help", l("no entendí", "unknown command"))),
