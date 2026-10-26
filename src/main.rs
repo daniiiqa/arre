@@ -8,6 +8,8 @@
 //!   arre list                el historial en JSON
 //!   arre clear               borrar el historial y lo que está en pantalla
 //!   arre close <id>          quitar una
+//!   arre waybar              para un módulo custom de waybar: JSON con cuántas
+//!                            hay y si está en no molestar, cada que cambia
 //!
 //! `--test` usa otro nombre en el bus (org.discada.Arre.Test) y no toma
 //! org.freedesktop.Notifications, para probar con otro daemon corriendo.
@@ -77,6 +79,56 @@ fn client(test: bool, method: &str, body: &(impl serde::Serialize + zbus::zvaria
     })
 }
 
+/// Como `swaync-client -swb`: un renglón JSON para waybar cada que algo
+/// cambia (mismos `alt`: notification, none, dnd-notification, dnd-none).
+/// Si arre no está, preguntarle lo arranca (activación de D-Bus); si se cae,
+/// espera y vuelve a intentar.
+fn waybar(test: bool) -> ! {
+    use std::io::Write;
+    // con otro nombre, `pkill arre` (para reiniciar el daemon) no se lleva el módulo
+    let _ = std::fs::write("/proc/self/comm", "arre-waybar");
+    let print = |count: u32, dnd: bool| {
+        let alt = match (dnd, count > 0) {
+            (false, true) => "notification",
+            (false, false) => "none",
+            (true, true) => "dnd-notification",
+            (true, false) => "dnd-none",
+        };
+        let tooltip = match (count, dnd) {
+            (0, false) => l("Sin notificaciones", "No notifications").to_string(),
+            (1, false) => format!("1 {}", l("notificación", "notification")),
+            (n, false) => format!("{n} {}", l("notificaciones", "notifications")),
+            (n, true) => format!("{n} · {}", l("no molestar", "do not disturb")),
+        };
+        let tooltip = format!("{tooltip}\n{}", l("Clic derecho: no molestar", "Right click: do not disturb"));
+        let line = serde_json::json!({ "text": count.to_string(), "alt": alt, "tooltip": tooltip, "class": alt });
+        println!("{line}");
+        let _ = std::io::stdout().flush();
+    };
+    loop {
+        let r: Result<(), String> = (|| {
+            let conn = zbus::blocking::Connection::session().map_err(|e| e.to_string())?;
+            let rule = zbus::MatchRule::builder()
+                .msg_type(zbus::message::Type::Signal)
+                .interface(CTL_IFACE)
+                .and_then(|b| b.member("Changed"))
+                .map_err(|e| e.to_string())?
+                .build();
+            let mut changes = zbus::blocking::MessageIterator::for_match_rule(rule, &conn, Some(16)).map_err(|e| e.to_string())?;
+            loop {
+                let ask = |m: &str| conn.call_method(Some(bus_name(test)), CTL_PATH, Some(CTL_IFACE), m, &()).map_err(|e| e.to_string());
+                let count: u32 = ask("Count")?.body().deserialize().map_err(|e| e.to_string())?;
+                let dnd: bool = ask("Dnd")?.body().deserialize().map_err(|e| e.to_string())?;
+                print(count, dnd);
+                changes.next().ok_or("bus")?.map_err(|e| e.to_string())?;
+            }
+        })();
+        let _ = r;
+        print(0, false);
+        std::thread::sleep(std::time::Duration::from_secs(3));
+    }
+}
+
 fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let test = args.iter().any(|a| a == "--test");
@@ -110,12 +162,13 @@ fn main() {
             Ok(())
         }
         ["clear"] => client(test, "Clear", &()).map(|_| ()),
+        ["waybar"] => waybar(test),
         ["close", id] => {
             let id: u32 = id.parse().map_err(|_| "arre close <id>".to_string())?;
             client(test, "Dismiss", &(id,)).map(|_| ())
         }
         ["-h" | "--help" | "help"] => {
-            println!("arre [dnd [on|off|toggle] | count | list | clear | close <id>] [--test]");
+            println!("arre [dnd [on|off|toggle] | count | list | clear | close <id> | waybar] [--test]");
             Ok(())
         }
         _ => Err(format!("{}: arre --help", l("no entendí", "unknown command"))),

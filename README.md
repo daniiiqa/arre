@@ -26,6 +26,16 @@ Entiende lo que mandan los scripts de discada: urgencia, tiempo, botones
 (`x-canonical-private-synchronous`), avisos de paso que no se guardan (`-e`) y
 saltarse el no molestar (`SWAYNC_BYPASS_DND` o urgencia crítica).
 
+Para waybar, un módulo custom con `"exec": "$HOME/.local/bin/arre waybar"` y
+`"return-type": "json"`: manda el contador y los mismos `alt` que swaync
+(`notification`, `none`, `dnd-notification`, `dnd-none`), así los iconos de
+cada look siguen sirviendo.
+
+Para que D-Bus arranque arre solo (al iniciar sesión o si se cae) en vez de
+otro daemon, en `~/.local/share/dbus-1/services/` van
+`org.freedesktop.Notifications.service` y `org.discada.Arre.service` con
+`Exec=` apuntando a arre.
+
 El historial y el no molestar se guardan en `~/.local/state/arre/state.json`.
 La superficie de Wayland se llama `arre`, por si quieres reglas de Hyprland
 (`layerrule = blur, arre`).
