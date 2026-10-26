@@ -16,6 +16,7 @@
 
 mod bus;
 mod card;
+mod icon;
 mod look;
 mod paint;
 mod popup;

@@ -2,6 +2,7 @@
 //! fuente de kitty, y las líneas de los recuadros (─│╭╮…) y los bloques de las
 //! barras (▁…█) dibujados a mano para que se unan sin huecos entre celdas.
 
+use crate::icon::Icon;
 use crate::look::{Look, kitty};
 use cosmic_text::{Attrs, Buffer as TextBuffer, Family, FontSystem, Metrics, Shaping, SwashCache, SwashContent, Weight};
 use ratatui::buffer::Buffer;
@@ -181,6 +182,36 @@ impl Painter {
             }
             self.text(pix, &text, ox, y, cw, ch, s);
         }
+    }
+
+    /// Un ícono en su cuadro de celdas (ox, oy: la esquina del aviso):
+    /// escalado sin deformar, a la izquierda y centrado de alto; los de una
+    /// sola tinta, del color del texto.
+    #[allow(clippy::too_many_arguments)]
+    pub fn icon(&self, pix: &mut Pixmap, icon: &Icon, cell: ratatui::layout::Rect, fg: Color, ox: f32, oy: f32, s: f32) {
+        let (cw, ch) = (self.cw * s, self.ch * s);
+        let (bw, bh) = (cell.width as f32 * cw, cell.height as f32 * ch);
+        let src = &icon.pix;
+        let k = (bw / src.width() as f32).min(bh / src.height() as f32);
+        let x = ox + cell.x as f32 * cw;
+        let y = oy + cell.y as f32 * ch + (bh - src.height() as f32 * k) / 2.0;
+        let tinted;
+        let src = match (icon.symbolic, rgba(fg, 1.0)) {
+            (true, Some((r, g, b, _))) => {
+                let mut p = (**src).clone();
+                for px in p.data_mut().chunks_exact_mut(4) {
+                    let a = px[3] as u16;
+                    px[0] = (r as u16 * a / 255) as u8;
+                    px[1] = (g as u16 * a / 255) as u8;
+                    px[2] = (b as u16 * a / 255) as u8;
+                }
+                tinted = p;
+                &tinted
+            }
+            _ => &**src,
+        };
+        let paint = tiny_skia::PixmapPaint { quality: tiny_skia::FilterQuality::Bicubic, ..Default::default() };
+        pix.draw_pixmap(0, 0, src.as_ref(), &paint, Transform::from_row(k, 0.0, 0.0, k, x, y), None);
     }
 
     /// Las letras de un renglón, cada una en su celda.

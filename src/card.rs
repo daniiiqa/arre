@@ -14,11 +14,16 @@ use ratatui::widgets::{Paragraph, Widget};
 pub const COLS: u16 = 44;
 const SUMMARY_LINES: usize = 2;
 const BODY_LINES: usize = 5;
+/// El cuadro del ícono, en celdas (a la izquierda del texto).
+const ICON_COLS: u16 = 5;
+const ICON_ROWS: u16 = 2;
 
 pub struct Card {
     pub buf: Buffer,
     /// botones: dónde quedaron (en celdas, dentro del aviso) y su clave
     pub buttons: Vec<(Rect, String)>,
+    /// dónde va el ícono, si hay
+    pub icon: Option<Rect>,
 }
 
 /// Partir en renglones de `w` celdas, por palabras; lo que no quepa en
@@ -66,14 +71,17 @@ fn wrap(text: &str, w: usize, max: usize) -> Vec<String> {
     lines
 }
 
-pub fn card(n: &Note, look: &Look) -> Card {
+pub fn card(n: &Note, look: &Look, with_icon: bool) -> Card {
     let t = look.theme;
-    let inner_w = (COLS - 4) as usize; // borde y un espacio a cada lado
+    // borde y un espacio a cada lado; con ícono, también su cuadro y un espacio
+    let shift = if with_icon { ICON_COLS + 1 } else { 0 };
+    let inner_w = (COLS - 4 - shift) as usize;
     let summary = wrap(&n.summary, inner_w, SUMMARY_LINES);
     let body = wrap(&n.body, inner_w, BODY_LINES);
     let buttons: Vec<&(String, String)> = n.actions.iter().filter(|a| a.0 != "default" && !a.1.is_empty()).collect();
     let rows = summary.len() + body.len() + n.value.is_some() as usize + (!buttons.is_empty()) as usize;
-    let area = Rect::new(0, 0, COLS, rows.max(1) as u16 + 2);
+    let min_rows = if with_icon { ICON_ROWS as usize } else { 1 };
+    let area = Rect::new(0, 0, COLS, rows.max(min_rows) as u16 + 2);
     let mut buf = Buffer::empty(area);
     buf.set_style(area, Style::new().bg(t.base).fg(t.fg));
 
@@ -82,7 +90,8 @@ pub fn card(n: &Note, look: &Look) -> Card {
     let block = look.block(false).border_style(Style::new().fg(if critical { t.red } else { t.border })).title(title);
     let inner = block.inner(area);
     block.render(area, &mut buf);
-    let text_area = Rect { x: inner.x + 1, width: inner.width.saturating_sub(2), ..inner };
+    let icon = with_icon.then(|| Rect::new(inner.x + 1, inner.y, ICON_COLS, ICON_ROWS));
+    let text_area = Rect { x: inner.x + 1 + shift, width: inner.width.saturating_sub(2 + shift), ..inner };
 
     let mut lines: Vec<Line> = Vec::new();
     for s in summary {
@@ -118,7 +127,7 @@ pub fn card(n: &Note, look: &Look) -> Card {
         lines.push(Line::from(spans));
     }
     Paragraph::new(lines).render(text_area, &mut buf);
-    Card { buf, buttons: hits }
+    Card { buf, buttons: hits, icon }
 }
 
 #[cfg(test)]

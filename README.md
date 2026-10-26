@@ -17,7 +17,8 @@ arre clear                borrar el historial y lo que está en pantalla
 arre close <id>           quitar una
 ```
 
-En pantalla: clic hace lo que pide el aviso (si pide algo) y lo quita, clic en
+Salen arriba al centro, encima de todo (también de lo que esté en pantalla
+completa). Clic hace lo que pide el aviso (si pide algo) y lo quita, clic en
 un botón usa ese botón, clic derecho lo quita, clic medio quita todos. Con el
 puntero encima no se van solos.
 
@@ -25,6 +26,12 @@ Entiende lo que mandan los scripts de discada: urgencia, tiempo, botones
 (`-A`), barra (`-h int:value:70`), reemplazar en vez de apilar
 (`x-canonical-private-synchronous`), avisos de paso que no se guardan (`-e`) y
 saltarse el no molestar (`SWAYNC_BYPASS_DND` o urgencia crítica).
+
+Íconos: una ruta (PNG, JPEG o SVG; se ve el formato por dentro, no por el
+nombre), un nombre del tema de íconos (`media-record`: el de GTK y lo que
+hereda, Adwaita, hicolor; si no hay de color, el *symbolic*, pintado del
+color del look) o la imagen que manda la app (`image-data`: Discord, Spotify…,
+guardada en `$XDG_RUNTIME_DIR/arre/`).
 
 Para waybar, un módulo custom con `"exec": "$HOME/.local/bin/arre waybar"` y
 `"return-type": "json"`: manda el contador y los mismos `alt` que swaync

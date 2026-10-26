@@ -60,6 +60,53 @@ pub fn plain(s: &str) -> String {
     out.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
 }
 
+fn images_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from(std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into())).join("arre")
+}
+
+/// La imagen que manda la app dentro del aviso (image-data: ancho, alto,
+/// bytes por renglón, si trae alfa, bits, canales y los pixeles) → un png en
+/// $XDG_RUNTIME_DIR/arre, para dibujarla y para el historial.
+fn save_image(v: OwnedValue) -> Option<String> {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static N: AtomicU32 = AtomicU32::new(0);
+    let v: zbus::zvariant::Value = v.into();
+    let (w, h, stride, alpha, _bits, channels, data): (i32, i32, i32, bool, i32, i32, Vec<u8>) = v.try_into().ok()?;
+    if !(1..=4096).contains(&w) || !(1..=4096).contains(&h) || channels < 3 {
+        return None;
+    }
+    let (w, h, stride, ch) = (w as usize, h as usize, stride as usize, channels as usize);
+    if data.len() < stride * (h - 1) + w * ch {
+        return None;
+    }
+    let mut rgba = Vec::with_capacity(w * h * 4);
+    for y in 0..h {
+        for x in 0..w {
+            let i = y * stride + x * ch;
+            let a = if alpha && ch >= 4 { data[i + 3] } else { 255 };
+            let pm = |c: u8| (c as u16 * a as u16 / 255) as u8; // tiny-skia: alfa premultiplicado
+            rgba.extend([pm(data[i]), pm(data[i + 1]), pm(data[i + 2]), a]);
+        }
+    }
+    let pix = tiny_skia::Pixmap::from_vec(rgba, tiny_skia::IntSize::from_wh(w as u32, h as u32)?)?;
+    let dir = images_dir();
+    std::fs::create_dir_all(&dir).ok()?;
+    let path = dir.join(format!("img-{}-{}.png", now(), N.fetch_add(1, Ordering::Relaxed)));
+    pix.save_png(&path).ok()?;
+    Some(path.to_string_lossy().into_owned())
+}
+
+/// Borrar las imágenes que ya no usa ningún aviso.
+pub fn prune_images(store: &Store) {
+    let Ok(dir) = std::fs::read_dir(images_dir()) else { return };
+    for e in dir.flatten() {
+        let p = e.path().to_string_lossy().into_owned();
+        if !store.notes.iter().any(|n| n.icon == p) {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+}
+
 fn hint<T: TryFrom<OwnedValue>>(hints: &mut HashMap<String, OwnedValue>, key: &str) -> Option<T> {
     T::try_from(hints.remove(key)?).ok()
 }
@@ -92,7 +139,14 @@ impl Notifications {
             .iter()
             .find_map(|k| hint::<String>(&mut hints, k))
             .filter(|t| !t.is_empty());
-        let icon = if app_icon.is_empty() { hint::<String>(&mut hints, "image-path").unwrap_or_default() } else { app_icon };
+        // lo que manda la app, en el orden del estándar: la imagen, su ruta, el ícono
+        let icon = ["image-data", "image_data", "icon_data"]
+            .iter()
+            .find_map(|k| hints.remove(*k))
+            .and_then(save_image)
+            .or_else(|| hint::<String>(&mut hints, "image-path").filter(|p| !p.is_empty()))
+            .or_else(|| hint::<String>(&mut hints, "image_path").filter(|p| !p.is_empty()))
+            .unwrap_or(app_icon);
         let n = Note {
             id: 0,
             app: app_name,
@@ -109,7 +163,10 @@ impl Notifications {
             expire: expire_timeout,
             bypass_dnd: urgency >= 2 || hint(&mut hints, "SWAYNC_BYPASS_DND").unwrap_or(false),
         };
-        let id = self.0.store.lock().unwrap().add(n, replaces_id);
+        let mut store = self.0.store.lock().unwrap();
+        let id = store.add(n, replaces_id);
+        prune_images(&store);
+        drop(store);
         self.0.send(Ev::Show(id));
         id
     }
