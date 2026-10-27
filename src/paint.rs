@@ -184,19 +184,45 @@ impl Painter {
         }
     }
 
-    /// Un ícono en su cuadro de celdas (ox, oy: la esquina del aviso):
-    /// escalado sin deformar, a la izquierda y centrado de alto; los de una
-    /// sola tinta, del color del texto.
+    /// El ícono de un aviso, siempre en el mismo cuadro: un cuadrado del alto
+    /// de su caja, redondeado si el borde del look lo es. Una foto lo llena
+    /// recortada (sin deformar) con un filo del color del borde; un ícono del
+    /// tema va entero al centro sobre un fondito del color del aviso, y los de
+    /// una sola tinta se pintan de ese color (el del look, o rojo si es urgente).
     #[allow(clippy::too_many_arguments)]
-    pub fn icon(&self, pix: &mut Pixmap, icon: &Icon, cell: ratatui::layout::Rect, fg: Color, ox: f32, oy: f32, s: f32) {
+    pub fn icon(&self, pix: &mut Pixmap, icon: &Icon, cell: ratatui::layout::Rect, look: &Look, tint: Color, rounded: bool, ox: f32, oy: f32, s: f32) {
         let (cw, ch) = (self.cw * s, self.ch * s);
         let (bw, bh) = (cell.width as f32 * cw, cell.height as f32 * ch);
+        let q = bw.min(bh).floor();
+        let x = (ox + cell.x as f32 * cw).round();
+        let y = (oy + cell.y as f32 * ch + (bh - q) / 2.0).round();
+        let r = if rounded { (q * 0.22).round() } else { 0.0 };
+        let lt = (cw / 9.0).round().max(1.0);
+        let Some(tile) = rounded_rect(x, y, q, q, r) else { return };
         let src = &icon.pix;
-        let k = (bw / src.width() as f32).min(bh / src.height() as f32);
-        let x = ox + cell.x as f32 * cw;
-        let y = oy + cell.y as f32 * ch + (bh - src.height() as f32 * k) / 2.0;
+        let quality = tiny_skia::PixmapPaint { quality: tiny_skia::FilterQuality::Bicubic, ..Default::default() };
+        if icon.photo {
+            let k = (q / src.width() as f32).max(q / src.height() as f32);
+            let dx = x + (q - src.width() as f32 * k) / 2.0;
+            let dy = y + (q - src.height() as f32 * k) / 2.0;
+            let Some(mut mask) = tiny_skia::Mask::new(pix.width(), pix.height()) else { return };
+            mask.fill_path(&tile, FillRule::Winding, true, Transform::identity());
+            pix.draw_pixmap(0, 0, (**src).as_ref(), &quality, Transform::from_row(k, 0.0, 0.0, k, dx, dy), Some(&mask));
+            if let (Some(edge), Some(c)) = (rounded_rect(x + lt / 2.0, y + lt / 2.0, q - lt, q - lt, (r - lt / 2.0).max(0.0)), rgba(look.theme.border, 1.0)) {
+                let stroke = Stroke { width: lt, ..Default::default() };
+                pix.stroke_path(&edge, &paint(c), &stroke, Transform::identity(), None);
+            }
+            return;
+        }
+        if let Some(bg) = rgba(tint, 0.16) {
+            pix.fill_path(&tile, &paint(bg), FillRule::Winding, Transform::identity(), None);
+        }
+        let inner = q * if icon.symbolic { 0.56 } else { 0.72 };
+        let k = (inner / src.width() as f32).min(inner / src.height() as f32);
+        let dx = x + (q - src.width() as f32 * k) / 2.0;
+        let dy = y + (q - src.height() as f32 * k) / 2.0;
         let tinted;
-        let src = match (icon.symbolic, rgba(fg, 1.0)) {
+        let src = match (icon.symbolic, rgba(tint, 1.0)) {
             (true, Some((r, g, b, _))) => {
                 let mut p = (**src).clone();
                 for px in p.data_mut().chunks_exact_mut(4) {
@@ -210,8 +236,7 @@ impl Painter {
             }
             _ => &**src,
         };
-        let paint = tiny_skia::PixmapPaint { quality: tiny_skia::FilterQuality::Bicubic, ..Default::default() };
-        pix.draw_pixmap(0, 0, src.as_ref(), &paint, Transform::from_row(k, 0.0, 0.0, k, x, y), None);
+        pix.draw_pixmap(0, 0, src.as_ref(), &quality, Transform::from_row(k, 0.0, 0.0, k, dx, dy), None);
     }
 
     /// Las letras de un renglón, cada una en su celda.

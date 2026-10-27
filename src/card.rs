@@ -24,6 +24,8 @@ pub struct Card {
     pub buttons: Vec<(Rect, String)>,
     /// dónde va el ícono, si hay
     pub icon: Option<Rect>,
+    /// urgente: el ícono va en rojo, como el borde
+    pub critical: bool,
 }
 
 /// Partir en renglones de `w` celdas, por palabras; lo que no quepa en
@@ -127,7 +129,7 @@ pub fn card(n: &Note, look: &Look, with_icon: bool) -> Card {
         lines.push(Line::from(spans));
     }
     Paragraph::new(lines).render(text_area, &mut buf);
-    Card { buf, buttons: hits, icon }
+    Card { buf, buttons: hits, icon, critical }
 }
 
 #[cfg(test)]

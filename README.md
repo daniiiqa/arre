@@ -31,7 +31,12 @@ saltarse el no molestar (`SWAYNC_BYPASS_DND` o urgencia crítica).
 nombre), un nombre del tema de íconos (`media-record`: el de GTK y lo que
 hereda, Adwaita, hicolor; si no hay de color, el *symbolic*, pintado del
 color del look) o la imagen que manda la app (`image-data`: Discord, Spotify…,
-guardada en `$XDG_RUNTIME_DIR/arre/`).
+guardada en `$XDG_RUNTIME_DIR/arre/`). Todos van en el mismo cuadro, del
+alto de dos renglones y redondeado si el borde del look lo es: una foto (la
+imagen de la app, una captura, una portada) lo llena recortada, con un filo
+del color del borde; un ícono del tema va entero al centro sobre un fondito
+del color del look, y los *symbolic* se pintan de ese color (rojo si es
+urgente). Lo que llega de `notify-send` sin `-a` sale como `discada`.
 
 Para waybar, un módulo custom con `"exec": "$HOME/.local/bin/arre waybar"` y
 `"return-type": "json"`: manda el contador y los mismos `alt` que swaync

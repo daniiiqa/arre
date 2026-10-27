@@ -149,7 +149,8 @@ impl Notifications {
             .unwrap_or(app_icon);
         let n = Note {
             id: 0,
-            app: app_name,
+            // notify-send sin -a (los scripts del rice): que diga discada
+            app: if app_name.is_empty() || app_name == "notify-send" { "discada".into() } else { app_name },
             icon,
             summary: plain(&summary),
             body: plain(&body),

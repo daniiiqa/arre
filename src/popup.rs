@@ -248,7 +248,9 @@ impl App {
             let ((c, icon), shown) = (&cards[i], &mut self.shown[i]);
             self.painter.card(&mut pix, &c.buf, &self.look, 0.0, y * s as f32, s as f32);
             if let (Some(icon), Some(cell)) = (icon, c.icon) {
-                self.painter.icon(&mut pix, icon, cell, self.look.theme.fg, 0.0, y * s as f32, s as f32);
+                let t = self.look.theme;
+                let rounded = c.buf[(0, 0)].symbol() == "╭";
+                self.painter.icon(&mut pix, icon, cell, &self.look, if c.critical { t.red } else { t.primary }, rounded, 0.0, y * s as f32, s as f32);
             }
             let ch = self.painter.size(1, c.buf.area.height).1 as f32;
             shown.y = (y as f64, (y + ch) as f64);

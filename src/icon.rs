@@ -15,8 +15,11 @@ const SVG_PX: f32 = 128.0;
 #[derive(Clone)]
 pub struct Icon {
     pub pix: Rc<Pixmap>,
-    /// de una sola tinta: pintarlo del color del texto
+    /// de una sola tinta: pintarlo del color del look
     pub symbolic: bool,
+    /// una foto (la imagen de la app, una captura, una portada): llena su
+    /// cuadro recortada; los íconos del tema caben enteros dentro de él
+    pub photo: bool,
 }
 
 pub struct Icons {
@@ -138,7 +141,9 @@ impl Icons {
         let found = resolve(name, &self.themes).or_else(|| (!name.contains('/')).then(|| resolve(&format!("{name}-symbolic"), &self.themes)).flatten());
         let icon = found.and_then(|p| {
             let symbolic = name.ends_with("-symbolic") || p.components().any(|c| c.as_os_str() == "symbolic");
-            load(&p).map(|pix| Icon { pix: Rc::new(pix), symbolic })
+            let svg = p.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg"));
+            let photo = !symbolic && !svg && name.contains('/');
+            load(&p).map(|pix| Icon { pix: Rc::new(pix), symbolic, photo })
         });
         // una ruta que todavía no existe (una miniatura a medio escribir) se
         // vuelve a buscar; cada imagen de app es otra: que no crezca sin fin
