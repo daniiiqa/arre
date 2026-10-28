@@ -346,7 +346,7 @@ pub fn run(shared: Arc<Shared>, rx: Channel<Ev>, dbus: zbus::blocking::Connectio
         shown: Vec::new(),
         shared,
         dbus,
-        look: Look::load(),
+        look: Look::load("arre"),
         painter: Painter::new(),
         icons: Icons::new(),
         position: config::position(),

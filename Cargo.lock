@@ -30,15 +30,13 @@ checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 name = "arre"
 version = "0.1.0"
 dependencies = [
- "cosmic-text",
+ "discada-kit",
  "ratatui",
- "resvg",
  "serde",
  "serde_json",
  "smithay-client-toolkit",
  "tiny-skia",
  "zbus",
- "zune-jpeg",
 ]
 
 [[package]]
@@ -425,6 +423,18 @@ name = "data-url"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
+
+[[package]]
+name = "discada-kit"
+version = "0.1.0"
+dependencies = [
+ "cosmic-text",
+ "ratatui",
+ "resvg",
+ "serde_json",
+ "tiny-skia",
+ "zune-jpeg",
+]
 
 [[package]]
 name = "downcast-rs"

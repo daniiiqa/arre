@@ -19,11 +19,11 @@
 mod bus;
 mod card;
 mod config;
-mod icon;
-mod look;
-mod paint;
 mod popup;
 mod store;
+
+// el look, el dibujo y los íconos son de discada-kit (los comparte con empalme)
+use discada_kit::{icon, look, paint};
 
 use bus::{CTL_IFACE, CTL_PATH, Control, Notifications, PATH, Shared};
 use smithay_client_toolkit::reexports::calloop::channel::channel;
