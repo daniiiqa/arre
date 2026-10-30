@@ -30,7 +30,7 @@ checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 name = "arre"
 version = "0.1.0"
 dependencies = [
- "discada-kit",
+ "disco",
  "ratatui",
  "serde",
  "serde_json",
@@ -425,8 +425,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
-name = "discada-kit"
+name = "disco"
 version = "0.1.0"
+source = "git+https://github.com/daniiiqa/disco#9c85bd7e0d2607d31155217cef28123b269a06cb"
 dependencies = [
  "cosmic-text",
  "ratatui",

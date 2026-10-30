@@ -22,8 +22,8 @@ mod config;
 mod popup;
 mod store;
 
-// el look, el dibujo y los íconos son de discada-kit (los comparte con empalme)
-use discada_kit::{icon, look, paint};
+// el look, el dibujo y los íconos son de disco (los comparte con empalme)
+use disco::{icon, look, paint};
 
 use bus::{CTL_IFACE, CTL_PATH, Control, Notifications, PATH, Shared};
 use smithay_client_toolkit::reexports::calloop::channel::channel;
