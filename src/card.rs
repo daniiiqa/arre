@@ -81,7 +81,20 @@ pub fn card(n: &Note, look: &Look, with_icon: bool) -> Card {
     let summary = wrap(&n.summary, inner_w, SUMMARY_LINES);
     let body = wrap(&n.body, inner_w, BODY_LINES);
     let buttons: Vec<&(String, String)> = n.actions.iter().filter(|a| a.0 != "default" && !a.1.is_empty()).collect();
-    let rows = summary.len() + body.len() + n.value.is_some() as usize + (!buttons.is_empty()) as usize;
+    // los botones en tantos renglones como hagan falta (antes se perdían los que no cabían)
+    let mut button_rows: Vec<Vec<(String, String)>> = Vec::new();
+    let mut used = 0;
+    for (key, label) in &buttons {
+        let label = format!(" {} ", look.tx(label));
+        let w = Span::raw(&label).width();
+        if button_rows.is_empty() || used + w > inner_w {
+            button_rows.push(Vec::new());
+            used = 0;
+        }
+        used += w + 1;
+        button_rows.last_mut().expect("just pushed").push((key.clone(), label));
+    }
+    let rows = summary.len() + body.len() + n.value.is_some() as usize + button_rows.len();
     let min_rows = if with_icon { ICON_ROWS as usize } else { 1 };
     let area = Rect::new(0, 0, COLS, rows.max(min_rows) as u16 + 2);
     let mut buf = Buffer::empty(area);
@@ -111,17 +124,13 @@ pub fn card(n: &Note, look: &Look, with_icon: bool) -> Card {
         ]));
     }
     let mut hits = Vec::new();
-    if !buttons.is_empty() {
+    for row in button_rows {
         let y = text_area.y + lines.len() as u16;
         let mut x = text_area.x;
         let mut spans = Vec::new();
-        for (key, label) in buttons {
-            let label = format!(" {} ", look.tx(label));
-            let w = Span::raw(&label).width() as u16;
-            if x + w > text_area.right() {
-                break;
-            }
-            hits.push((Rect::new(x, y, w, 1), key.clone()));
+        for (key, label) in row {
+            let w = (Span::raw(&label).width() as u16).min(text_area.width);
+            hits.push((Rect::new(x, y, w, 1), key));
             spans.push(Span::styled(label, Style::new().fg(t.base).bg(t.primary).bold()));
             spans.push(Span::raw(" "));
             x += w + 1;
