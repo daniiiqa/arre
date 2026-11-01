@@ -191,9 +191,11 @@ impl App {
     fn redraw(&mut self) {
         let cards = self.cards();
         if cards.is_empty() {
-            // nada que mostrar: fuera la superficie
+            // nada que mostrar: fuera la superficie (y con ella el puntero:
+            // puede que su Leave ni llegue)
             self.layer = None;
             self.configured = false;
+            self.hover = false;
             return;
         }
         let w = self.painter.size(cards[0].0.buf.area.width, 1).0;
@@ -373,6 +375,7 @@ pub fn run(shared: Arc<Shared>, rx: Channel<Ev>, dbus: zbus::blocking::Connectio
                     app.position = p;
                     app.layer = None;
                     app.configured = false;
+                    app.hover = false;
                     app.redraw();
                 }
             }
@@ -446,7 +449,12 @@ impl SeatHandler for App {
 impl PointerHandler for App {
     fn pointer_frame(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_pointer::WlPointer, events: &[PointerEvent]) {
         for e in events {
-            if self.layer.as_ref().is_none_or(|l| &e.surface != l.wl_surface()) {
+            // el Leave cuenta siempre: si la superficie se destruyó con el
+            // puntero encima (se cerró la última), su Leave llega de una que
+            // ya no es la actual, y si se ignoraba, hover quedaba prendido y
+            // ninguna noti volvía a expirar hasta darle click
+            let ours = self.layer.as_ref().is_some_and(|l| &e.surface == l.wl_surface());
+            if !ours && !matches!(e.kind, PointerEventKind::Leave { .. }) {
                 continue;
             }
             match e.kind {
